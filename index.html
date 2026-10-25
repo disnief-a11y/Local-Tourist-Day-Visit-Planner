@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local Tourist Day-Visit Planner</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: #f4f6f8; color: #222; }
+  header { background: #0f766e; color: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+  header h1 { font-size: 20px; }
+  nav button { background: rgba(255,255,255,0.15); color: #fff; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; margin-left: 6px; font-size: 14px; font-weight: 500; transition: 0.2s; }
+  nav button:hover { background: rgba(255,255,255,0.3); }
+  nav button.active { background: #fff; color: #0f766e; font-weight: 600; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  .toolbar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .toolbar input, .toolbar select { padding: 12px 16px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .toolbar input { flex: 1; min-width: 200px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+  
+  .card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 12px 20px rgba(0,0,0,0.1); }
+  
+  .card-img { height: 120px; background: linear-gradient(135deg, #0f766e, #14b8a6); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 50px; }
+  
+  .card-body { padding: 16px; display: flex; flex-direction: column; flex: 1; }
+  .card-body h3 { font-size: 17px; margin-bottom: 8px; color: #111; }
+  .card-body .cat { display: inline-block; background: #e6fffa; color: #0f766e; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; margin-bottom: 10px; align-self: flex-start; }
+  .card-body p { font-size: 13px; color: #555; line-height: 1.5; flex: 1; margin-bottom: 12px; }
+  .card-body .meta { font-size: 12px; color: #888; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 10px; font-weight: 500; }
+
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 16px; backdrop-filter: blur(3px); }
+  .modal-bg.open { display: flex; }
+  .modal { background: #fff; border-radius: 16px; max-width: 720px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+  .modal-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h2 { font-size: 20px; color: #0f766e; }
+  .modal-header button { background: none; border: none; font-size: 24px; cursor: pointer; color: #888; }
+  .modal-body { padding: 20px; }
+  #detail-map { height: 260px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #eee; }
+  .detail-row { padding: 8px 0; border-bottom: 1px dashed #eee; font-size: 14px; display: flex; justify-content: space-between; gap: 12px; }
+  .detail-row span:first-child { color: #666; }
+  .detail-row span:last-child { text-align: right; font-weight: 600; }
+  .facilities { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .fac-tag { background: #f0fdfa; color: #0f766e; font-size: 12px; padding: 4px 12px; border-radius: 12px; border: 1px solid #99f6e4; font-weight: 500; }
+  
+  .btn-primary { background: #0f766e; color: #fff; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.2s; }
+  .btn-primary:hover { background: #115e59; }
+  .btn-secondary { background: #e5e7eb; color: #333; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  
+  .planner-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; background: #fff; padding: 16px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .planner-row label { font-size: 14px; color: #444; font-weight: 500; }
+  .planner-row input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; width: 100px; font-size: 14px; }
+  .selected-list { background: #fff; border-radius: 10px; padding: 16px; margin-bottom: 20px; min-height: 80px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .selected-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+  .selected-item button { background: #fee2e2; color: #b91c1c; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .result-box { padding: 20px; border-radius: 10px; font-size: 14px; margin-bottom: 20px; display: none; }
+  .result-box.feasible { display: block; background: #dcfce7; border-left: 5px solid #16a34a; }
+  .result-box.warning { display: block; background: #fef3c7; border-left: 5px solid #d97706; }
+  .result-box h3 { font-size: 18px; margin-bottom: 10px; }
+  .result-box table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .result-box th, .result-box td { padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.05); text-align: left; }
+
+  .admin-form { background: #fff; padding: 20px; border-radius: 10px; max-width: 600px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .admin-form label { display: block; font-size: 13px; color: #444; margin: 12px 0 6px; font-weight: 500; }
+  .admin-form input, .admin-form textarea { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; font-family: inherit; }
+  .admin-form textarea { min-height: 80px; }
+  .login-box { max-width: 400px; margin: 60px auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .login-box h2 { margin-bottom: 20px; font-size: 20px; color: #0f766e; text-align: center; }
+  .login-box input { width: 100%; padding: 12px; margin-bottom: 14px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+  .login-box button { width: 100%; }
+  .error { color: #b91c1c; font-size: 13px; margin-top: 8px; text-align: center; }
+  .admin-list { margin-top: 24px; }
+  .admin-list table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .admin-list th, .admin-list td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+  .admin-list th { background: #f9fafb; font-weight: 600; color: #444; }
+  .admin-list button { padding: 6px 12px; font-size: 12px; margin-right: 6px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+  .btn-edit { background: #dbeafe; color: #1e40af; }
+  .btn-delete { background: #fee2e2; color: #b91c1c; }
+  #map-view { height: 600px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌴 Local Tourist Day-Visit Planner</h1>
+  <nav>
+    <button data-view="home" class="active">Discover</button>
+    <button data-view="map">Map</button>
+    <button data-view="planner">Plan</button>
+    <button data-view="admin">Admin</button>
+  </nav>
+</header>
+
+<div class="container">
+  <section id="view-home">
+    <div class="toolbar">
+      <input id="search-input" type="text" placeholder="Search attractions by name, description…"/>
+      <select id="category-filter"><option value="">All Categories</option></select>
+    </div>
+    <div id="attraction-grid" class="grid"></div>
+  </section>
+
+  <section id="view-map" class="hidden">
+    <h2 style="margin-bottom:16px;color:#0f766e">Attractions within 25 km of University of Kelaniya</h2>
+    <div id="map-view"></div>
+  </section>
+
+  <section id="view-planner" class="hidden">
+    <h2 style="margin-bottom:16px;color:#0f766e">Plan Your One-Day Visit</h2>
+    <p style="margin-bottom:16px;color:#555;font-size:14px">Select attractions below, then enter your available time to check if the plan is realistic.</p>
+    
+    <div class="planner-row">
+      <label>Available time (hours):</label>
+      <input id="available-hours" type="number" value="8" min="1" max="15" step="0.5"/>
+      <button id="evaluate-btn" class="btn-primary">Evaluate Plan</button>
+      <button id="clear-btn" class="btn-secondary">Clear All</button>
+    </div>
+    
+    <h3 style="margin:20px 0 10px;color:#333">Selected Attractions</h3>
+    <div id="selected-list" class="selected-list"></div>
+    
+    <div id="result-box" class="result-box"></div>
+    
+    <h3 style="margin:24px 0 12px;color:#333">Click an Attraction to Add to Plan</h3>
+    <div id="planner-grid" class="grid"></div>
+  </section>
+
+  <section id="view-admin" class="hidden">
+    <div id="admin-login-box" class="login-box">
+      <h2>Administrator Login</h2>
+      <input id="admin-user" type="text" placeholder="Username"/>
+      <input id="admin-pass" type="password" placeholder="Password"/>
+      <button id="admin-login-btn" class="btn-primary">Login</button>
+      <p class="error hidden" id="admin-error">Invalid credentials. Try admin / admin123</p>
+      <p style="font-size:13px;color:#888;margin-top:20px;text-align:center">Demo credentials: admin / admin123</p>
+    </div>
+    
+    <div id="admin-panel" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="color:#0f766e">Manage Attractions</h2>
+        <button id="admin-logout" class="btn-secondary">Logout</button>
+      </div>
+      <div class="admin-form">
+        <h3 style="font-size:16px;margin-bottom:10px" id="form-title">Add New Attraction</h3>
+        <label>Name</label><input id="f-name" type="text"/>
+        <label>Category</label><input id="f-cat" type="text" placeholder="e.g. Nature / Recreation"/>
+        <label>Description</label><textarea id="f-desc"></textarea>
+        <label>Opening Hours</label><input id="f-hours" type="text" placeholder="e.g. 9:00 AM – 5:00 PM"/>
+        <label>Entrance Fee (LKR)</label><input id="f-fee" type="number" value="0"/>
+        <label>Estimated Visit Duration (minutes)</label><input id="f-duration" type="number" value="60"/>
+        <label>Facilities (comma-separated)</label><input id="f-fac" type="text" placeholder="parking, restrooms, family"/>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label>Latitude</label><input id="f-lat" type="number" step="0.0001"/></div>
+          <div style="flex:1"><label>Longitude</label><input id="f-lng" type="number" step="0.0001"/></div>
+        </div>
+        <div style="margin-top:20px">
+          <button id="admin-save" class="btn-primary">Save Attraction</button>
+          <button id="admin-cancel" class="btn-secondary hidden">Cancel Edit</button>
+        </div>
+      </div>
+      <div class="admin-list">
+        <table><thead><tr><th>Name</th><th>Category</th><th>Duration</th><th>Actions</th></tr></thead>
+        <tbody id="admin-tbody"></tbody></table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="modal-bg" id="detail-modal">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modal-title">Attraction</h2><button id="modal-close">×</button></div>
+    <div class="modal-body">
+      <div id="detail-map"></div>
+      <div id="detail-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const START = { lat: 6.9730, lng: 79.9150, name: "University of Kelaniya, Wewalduwa" };
+
+const SEED = [
+  { id:"a1", name:"Kelaniya Raja Maha Viharaya", cat:"Religious / Heritage", desc:"Ancient Buddhist temple with frescoes and a famous reclining Buddha statue.", hours:"6:00 AM – 9:00 PM", fee:0, dur:90, fac:["parking","restrooms","family","wheelchair"], lat:6.9600, lng:79.9220 },
+  { id:"a2", name:"Kithsirimewan Viharaya", cat:"Religious / Heritage", desc:"Historic temple with peaceful atmosphere and traditional architecture.", hours:"6:00 AM – 8:00 PM", fee:0, dur:60, fac:["parking","family"], lat:6.9500, lng:79.9300 },
+  { id:"a3", name:"Manelwatta Temple", cat:"Religious / Cultural", desc:"Serene temple surrounded by greenery, popular for meditation.", hours:"6:00 AM – 7:00 PM", fee:0, dur:60, fac:["parking","family"], lat:6.9800, lng:79.9300 },
+  { id:"a4", name:"Water World Kelaniya", cat:"Recreation / Family", desc:"Family-friendly water park with slides, pools and kids' play area.", hours:"9:00 AM – 6:00 PM", fee:1500, dur:180, fac:["parking","restrooms","family","food"], lat:6.9700, lng:79.9100 },
+  { id:"a5", name:"Diyatha Uyana Park", cat:"Nature / Recreation", desc:"Lakeside park with walking paths, musical fountain and food stalls.", hours:"6:00 AM – 9:00 PM", fee:0, dur:90, fac:["parking","restrooms","family","food","wheelchair"], lat:6.8900, lng:79.9100 },
+  { id:"a6", name:"Baddegana Wetland Park", cat:"Nature", desc:"Wetland sanctuary ideal for birdwatching and nature photography.", hours:"7:00 AM – 6:00 PM", fee:100, dur:75, fac:["parking","family"], lat:6.8900, lng:79.9300 },
+  { id:"a7", name:"Viharamahadevi Park", cat:"City Park / Leisure", desc:"Colombo's largest park, featuring children's play area and shaded walkways.", hours:"6:00 AM – 8:00 PM", fee:0, dur:60, fac:["restrooms","family","wheelchair"], lat:6.9150, lng:79.8600 },
+  { id:"a8", name:"Colombo National Museum", cat:"Museum / Heritage", desc:"Sri Lanka's largest museum, home to royal regalia and ancient art.", hours:"9:00 AM – 5:00 PM (Closed Fridays)", fee:300, dur:120, fac:["parking","restrooms","family","wheelchair"], lat:6.9110, lng:79.8610 },
+  { id:"a9", name:"Dutch Hospital Shopping Precinct", cat:"Heritage / Dining", desc:"Restored 17th-century building now housing restaurants and boutiques.", hours:"10:00 AM – 11:00 PM", fee:0, dur:60, fac:["parking","restrooms","family","food"], lat:6.9330, lng:79.8420 },
+  { id:"a10", name:"Galle Face Green", cat:"Recreation / Seafront", desc:"Iconic oceanfront promenade ideal for sunset walks and street food.", hours:"Open 24 hours", fee:0, dur:60, fac:["restrooms","family","food","wheelchair"], lat:6.9270, lng:79.8420 }
+];
+
+function loadAttractions(){ 
+  try { 
+    const s = JSON.parse(localStorage.getItem("attractions_final_emoji")); 
+    if (s && s.length) return s; 
+  } catch(e){} 
+  localStorage.setItem("attractions_final_emoji", JSON.stringify(SEED)); 
+  return SEED.slice(); 
+}
+function saveAttractions(l){ localStorage.setItem("attractions_final_emoji", JSON.stringify(l)); }
+
+let ATTRACTIONS = loadAttractions();
+let SELECTED = [];
+
+function distanceKm(a,b){ const R=6371, dLat=(b.lat-a.lat)*Math.PI/180, dLng=(b.lng-a.lng)*Math.PI/180; const s=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(s)); }
+function fmtLKR(n){ return n===0 ? "Free" : "LKR "+n.toLocaleString(); }
+function iconFor(c){ if(c.includes("Relig"))return"🛕"; if(c.includes("Nature"))return"🌿"; if(c.includes("Museum"))return"🏛️"; if(c.includes("Recre"))return"🎡"; if(c.includes("Park"))return"🌳"; if(c.includes("Heritage")||c.includes("Dining"))return"🏰"; if(c.includes("Seafront"))return"🌊"; return"📍"; }
+
+document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
+function switchView(n){ 
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===n)); 
+  ["home","map","planner","admin"].forEach(v=>document.getElementById("view-"+v).classList.toggle("hidden",v!==n)); 
+  if(n==="map") renderMainMap(); 
+  if(n==="planner") renderPlanner(); 
+  if(n==="admin") renderAdminList(); 
+}
+
+const searchInput=document.getElementById("search-input"), categoryFilter=document.getElementById("category-filter"), grid=document.getElementById("attraction-grid");
+function populateCategories(){ const c=[...new Set(ATTRACTIONS.map(a=>a.cat))].sort(); categoryFilter.innerHTML='<option value="">All Categories</option>'+c.map(x=>`<option value="${x}">${x}</option>`).join(""); }
+
+function renderHome(){ 
+  const q=searchInput.value.trim().toLowerCase(), c=categoryFilter.value; 
+  const list=ATTRACTIONS.filter(a=>(!c||a.cat===c)&&(!q||(a.name+" "+a.desc+" "+a.cat).toLowerCase().includes(q))); 
+  if(!list.length){grid.innerHTML='<p style="padding:20px;color:#888">No attractions match your search.</p>';return;} 
+  
+  grid.innerHTML=list.map(a=>`
+    <div class="card" data-id="${a.id}">
+      <div class="card-img">${iconFor(a.cat)}</div>
+      <div class="card-body">
+        <span class="cat">${a.cat}</span>
+        <h3>${a.name}</h3>
+        <p>${a.desc}</p>
+        <div class="meta"><span>⏱ ${a.dur} min</span> <span>💰 ${fmtLKR(a.fee)}</span></div>
+      </div>
+    </div>`).join(""); 
+  grid.querySelectorAll(".card").forEach(el=>el.addEventListener("click",()=>openDetail(el.dataset.id))); 
+}
+searchInput.addEventListener("input",renderHome);
+categoryFilter.addEventListener("change",renderHome);
+
+const modal=document.getElementById("detail-modal"), modalTitle=document.getElementById("modal-title"), modalContent=document.getElementById("detail-content");
+document.getElementById("modal-close").addEventListener("click",()=>modal.classList.remove("open"));
+modal.addEventListener("click",e=>{if(e.target===modal)modal.classList.remove("open")});
+let detailMapInstance=null;
+
+function openDetail(id){ 
+  const a=ATTRACTIONS.find(x=>x.id===id); if(!a)return; 
+  modalTitle.textContent=a.name; 
+  
+  const d=distanceKm(START,a); 
+  modalContent.innerHTML=`
+    <span style="display:inline-block;background:#e6fffa;color:#0f766e;font-size:12px;padding:4px 12px;border-radius:12px;margin-bottom:12px;font-weight:600">${a.cat}</span>
+    <p style="color:#444;line-height:1.6;margin-bottom:16px">${a.desc}</p>
+    <div class="detail-row"><span>Distance from ${START.name}</span><span>${d.toFixed(1)} km</span></div>
+    <div class="detail-row"><span>Opening hours</span><span>${a.hours}</span></div>
+    <div class="detail-row"><span>Entrance fee</span><span>${fmtLKR(a.fee)}</span></div>
+    <div class="detail-row"><span>Estimated visit duration</span><span>${a.dur} minutes</span></div>
+    <div class="detail-row" style="border:none"><span>Facilities & accessibility</span></div>
+    <div class="facilities">${(a.fac||[]).map(f=>`<span class="fac-tag">${f}</span>`).join("")||"<span style='color:#888;font-size:13px'>No facilities listed</span>"}</div>
+    <div style="margin-top:24px">
+      <button class="btn-primary" onclick="addToPlanner('${a.id}')" style="width:100%">+ Add to Plan</button>
+    </div>`; 
+  
+  modal.classList.add("open"); 
+  setTimeout(()=>{ 
+    if(detailMapInstance){detailMapInstance.remove();detailMapInstance=null;} 
+    detailMapInstance=L.map("detail-map").setView([a.lat,a.lng],14); 
+    // ESRI Map Tiles
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri'
+    }).addTo(detailMapInstance); 
+    L.marker([a.lat,a.lng]).addTo(detailMapInstance).bindPopup(a.name).openPopup(); 
+    setTimeout(()=>detailMapInstance.invalidateSize(),150); 
+  },100); 
+}
+window.addToPlanner=function(id){ if(!SELECTED.includes(id))SELECTED.push(id); modal.classList.remove("open"); switchView("planner"); };
+
+let mainMap=null;
+function renderMainMap(){ 
+  if(!mainMap){ 
+    mainMap=L.map("map-view").setView([START.lat,START.lng],11); 
+    // ESRI Map Tiles
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri'
+    }).addTo(mainMap); 
+    setTimeout(()=>mainMap.invalidateSize(),150); 
+  } else { 
+    mainMap.eachLayer(l=>{if(l instanceof L.Marker)mainMap.removeLayer(l);}); 
+  } 
+  ATTRACTIONS.forEach(a=>{
+    L.marker([a.lat,a.lng]).addTo(mainMap).bindPopup(`<b>${a.name}</b><br>${a.cat}<br>${distanceKm(START,a).toFixed(1)} km`);
+  }); 
+}
+
+const plannerGrid=document.getElementById("planner-grid"), selectedList=document.getElementById("selected-list"), resultBox=document.getElementById("result-box");
+function renderPlanner(){ 
+  plannerGrid.innerHTML=ATTRACTIONS.map(a=>`
+    <div class="card" data-id="${a.id}">
+      <div class="card-img">${iconFor(a.cat)}</div>
+      <div class="card-body">
+        <span class="cat">${a.cat}</span>
+        <h3>${a.name}</h3>
+        <div class="meta"><span>📍 ${distanceKm(START,a).toFixed(1)} km</span> <span>⏱ ${a.dur} min</span></div>
+      </div>
+    </div>`).join(""); 
+  plannerGrid.querySelectorAll(".card").forEach(c=>c.addEventListener("click",()=>{if(!SELECTED.includes(c.dataset.id))SELECTED.push(c.dataset.id); renderSelected();})); 
+  renderSelected(); 
+}
+
+function renderSelected(){ 
+  if(!SELECTED.length){selectedList.innerHTML='<p style="color:#888;font-size:14px">No attractions selected yet. Click the cards below to add them.</p>';return;} 
+  selectedList.innerHTML=SELECTED.map(id=>{
+    const a=ATTRACTIONS.find(x=>x.id===id); if(!a)return""; 
+    return`<div class="selected-item"><span><b>${a.name}</b> <small style="color:#888">(${a.dur} min)</small></span><button onclick="removeSelected('${id}')">Remove</button></div>`;
+  }).join(""); 
+}
+window.removeSelected=function(id){ SELECTED=SELECTED.filter(x=>x!==id); renderSelected(); };
+document.getElementById("clear-btn").addEventListener("click",()=>{SELECTED=[];renderSelected();resultBox.innerHTML="";resultBox.className="result-box";});
+
+document.getElementById("evaluate-btn").addEventListener("click",()=>{ 
+  if(!SELECTED.length){
+    resultBox.className="result-box warning";
+    resultBox.innerHTML='<h3>⚠️ No attractions selected</h3><p>Please select at least one attraction below to build a plan.</p>';
+    return;
+  } 
+  const avail=parseFloat(document.getElementById("available-hours").value)*60; 
+  if(!avail||avail<=0){
+    resultBox.className="result-box warning";
+    resultBox.innerHTML='<h3>⚠️ Invalid time</h3><p>Please enter a valid available time.</p>';
+    return;
+  } 
+  
+  let tt=0,tv=0,prev=START,rows=""; 
+  SELECTED.forEach(id=>{
+    const a=ATTRACTIONS.find(x=>x.id===id); if(!a)return; 
+    const d=distanceKm(prev,a); 
+    const travel=Math.round(d*3); 
+    tt+=travel; tv+=a.dur; 
+    rows+=`<tr><td>${a.name}</td><td>${d.toFixed(1)} km</td><td>${travel} min</td><td>${a.dur} min</td></tr>`; 
+    prev=a;
+  }); 
+  
+  const total=tt+tv; 
+  const feasible=total<=avail; 
+  const totalLabel=Math.floor(total/60)+"h "+(total%60)+"m"; 
+  
+  resultBox.className=`result-box ${feasible?"feasible":"warning"}`;
+  resultBox.innerHTML=`
+    <h3>${feasible?"✅ Plan looks feasible":"⚠️ Plan may exceed your available time"}</h3>
+    <p><b>Available:</b> ${(avail/60).toFixed(1)} h (${avail} min)</p>
+    <p><b>Estimated total:</b> ${totalLabel} (${total} min)</p>
+    <p><b>Travel:</b> ${tt} min · <b>Visit:</b> ${tv} min</p>
+    <table><thead><tr><th>Attraction</th><th>Distance</th><th>Travel</th><th>Visit</th></tr></thead><tbody>${rows}</tbody></table>
+    <p style="margin-top:12px;font-size:12px;color:#666">Travel estimated at ~20 km/h urban average.</p>
+  `; 
+});
+
+const adminLoginBox=document.getElementById("admin-login-box"), adminPanel=document.getElementById("admin-panel");
+let isAdmin=false, editingId=null;
+
+document.getElementById("admin-login-btn").addEventListener("click",()=>{ 
+  if(document.getElementById("admin-user").value==="admin" && document.getElementById("admin-pass").value==="admin123"){ 
+    isAdmin=true; adminLoginBox.classList.add("hidden"); adminPanel.classList.remove("hidden"); renderAdminList(); 
+  } else { 
+    document.getElementById("admin-error").classList.remove("hidden"); 
+  } 
+});
+document.getElementById("admin-logout").addEventListener("click",()=>{ isAdmin=false; adminPanel.classList.add("hidden"); adminLoginBox.classList.remove("hidden"); });
+
+function renderAdminList(){ 
+  if(!isAdmin)return; 
+  const tbody=document.getElementById("admin-tbody"); 
+  tbody.innerHTML=ATTRACTIONS.map(a=>`<tr><td>${a.name}</td><td>${a.cat}</td><td>${a.dur} min</td><td><button class="btn-edit" onclick="editAttraction('${a.id}')">Edit</button><button class="btn-delete" onclick="deleteAttraction('${a.id}')">Delete</button></td></tr>`).join(""); 
+}
+
+window.editAttraction=function(id){ 
+  const a=ATTRACTIONS.find(x=>x.id===id); if(!a)return; 
+  editingId=id; 
+  document.getElementById("form-title").textContent="Edit Attraction"; 
+  document.getElementById("f-name").value=a.name; 
+  document.getElementById("f-cat").value=a.cat; 
+  document.getElementById("f-desc").value=a.desc; 
+  document.getElementById("f-hours").value=a.hours; 
+  document.getElementById("f-fee").value=a.fee; 
+  document.getElementById("f-duration").value=a.dur; 
+  document.getElementById("f-fac").value=(a.fac||[]).join(", "); 
+  document.getElementById("f-lat").value=a.lat; 
+  document.getElementById("f-lng").value=a.lng; 
+  document.getElementById("admin-cancel").classList.remove("hidden"); 
+  window.scrollTo({top:0,behavior:"smooth"}); 
+};
+
+window.deleteAttraction=function(id){ 
+  if(!confirm("Are you sure you want to delete this attraction?"))return; 
+  ATTRACTIONS=ATTRACTIONS.filter(x=>x.id!==id); 
+  saveAttractions(ATTRACTIONS); 
+  renderAdminList(); 
+  renderHome(); 
+  populateCategories();
+};
+
+document.getElementById("admin-cancel").addEventListener("click",resetForm);
+
+function resetForm(){ 
+  editingId=null; 
+  document.getElementById("form-title").textContent="Add New Attraction"; 
+  ["f-name","f-cat","f-desc","f-hours","f-fac","f-lat","f-lng"].forEach(i=>document.getElementById(i).value=""); 
+  document.getElementById("f-fee").value=0; 
+  document.getElementById("f-duration").value=60; 
+  document.getElementById("admin-cancel").classList.add("hidden"); 
+}
+
+document.getElementById("admin-save").addEventListener("click",()=>{ 
+  const name=document.getElementById("f-name").value.trim(), 
+        cat=document.getElementById("f-cat").value.trim(), 
+        desc=document.getElementById("f-desc").value.trim(), 
+        hours=document.getElementById("f-hours").value.trim(), 
+        fee=parseFloat(document.getElementById("f-fee").value)||0, 
+        dur=parseInt(document.getElementById("f-duration").value)||60, 
+        fac=document.getElementById("f-fac").value.split(",").map(s=>s.trim()).filter(Boolean), 
+        lat=parseFloat(document.getElementById("f-lat").value), 
+        lng=parseFloat(document.getElementById("f-lng").value); 
+        
+  if(!name||!cat||!desc||isNaN(lat)||isNaN(lng)){
+    alert("Please fill in all required fields (Name, Category, Description, Latitude, Longitude)"); 
+    return;
+  } 
+  
+  if(editingId){ 
+    const a=ATTRACTIONS.find(x=>x.id===editingId); 
+    Object.assign(a,{name,cat,desc,hours,fee,dur,fac,lat,lng}); 
+  } else { 
+    ATTRACTIONS.push({id:"a"+Date.now(),name,cat,desc,hours,fee,dur,fac,lat,lng}); 
+  } 
+  
+  saveAttractions(ATTRACTIONS); 
+  resetForm(); 
+  renderAdminList(); 
+  renderHome(); 
+  populateCategories(); 
+});
+
+populateCategories(); 
+renderHome();
+</script>
+</body>
+</html>
